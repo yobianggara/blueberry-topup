@@ -1,0 +1,2 @@
+// PIN Admin hanya dibandingkan di server dengan Env. Browser tidak pernah menerima PIN / kunci.
+export default async function handler(req,res){if(req.method!=='POST')return res.status(405).json({ok:false});const {pin}=req.body||{};if(!process.env.ADMIN_PIN)return res.status(500).json({ok:false,error:'PIN Admin belum diatur di server.'});if(pin!==process.env.ADMIN_PIN)return res.status(401).json({ok:false,error:'PIN salah.'});return res.status(200).json({ok:true,token:'admin-'+Date.now()});}

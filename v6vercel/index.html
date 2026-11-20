@@ -1,0 +1,104 @@
+<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blueberry Store — Top Up Game Termurah & Tercepat</title><link rel="stylesheet" href="style.css">
+<script defer src="/_vercel/insights/script.js"></script></head>
+<body>
+<header class="top"><div class="wrap top-in"><div class="logo"><span class="logo-b">B</span><div><b>BLUEBERRY <span>STORE</span></b><small>Website top-up terbesar, tercepat dan terpercaya</small></div></div><div class="top-right"><span class="pill-country">🌐 ID • Indonesia</span><button class="icon-btn">🔍</button><button class="icon-btn">🔔</button><button class="btn-daftar" onclick="document.getElementById('cfg').scrollIntoView({behavior:'smooth'})">Daftar</button></div></div></header>
+
+<!-- VIEW 1: HOME -->
+<div id="view-home">
+<section class="hero"><div class="wrap"><div class="banners" id="banners"></div><div class="dots" id="dots"></div>
+<div class="info-bar"><div><b>Top Up Aman &amp; Tercepat</b><span>Negara: Indonesia (ID) • Mata uang tampilan: Rp</span></div><div class="info-right"><label>Ganti Negara <select><option>Indonesia (ID)</option></select></label><button class="btn-cek" onclick="openOrders()">📋 Cek Pesanan</button></div></div>
+<nav class="tabs" id="tabs"></nav></div></section>
+<main class="wrap"><div id="status" class="status">Memuat katalog ...</div><h2 class="sec-title">UNGGULAN <span id="gameCount"></span></h2><div id="gameGrid" class="game-grid"></div>
+<section class="trust"><div><b>⚡ Proses Instan</b><span>Pesanan diproses otomatis setelah pembayaran terverifikasi.</span></div><div><b>🛡️ Aman &amp; Resmi</b><span>Harga terbaik, pembayaran aman & terverifikasi.</span></div><div><b>💬 CS via WhatsApp</b><span id="waInfo">Hubungi kami via WhatsApp.</span></div></section></main>
+</div>
+
+<!-- VIEW 2: GAME DETAIL -->
+<div id="view-game" class="hidden">
+<div class="wrap"><button class="back" onclick="showHome()">← Kembali</button><div class="detail"><aside class="detail-left"><div class="detail-cover" id="dCover"></div><h2 id="dName"></h2><p id="dMeta"></p><div class="safe">📍 Pembayaran yang Aman</div><p id="dDesc"></p><p class="negara">Negara: Indonesia (ID) • Harga dalam Rp</p><div class="pay-methods"><b>METODE PEMBAYARAN</b><div id="dPay"></div></div></aside>
+<main class="detail-main"><div class="step"><span>1</span><h3>Masukkan ID &amp; Server ID</h3></div><div class="inputs"><label>USER ID / LINK AKUN *<input id="fId" placeholder="Masukkan User ID / Link Akun"></label><label>SERVER ID *<input id="fZone" placeholder="Masukkan Server ID"></label></div><p class="help" id="dHelp"></p>
+<div class="step"><span>2</span><h3>Pilih Nominal Top Up</h3></div><div id="nominalGrid" class="nominal-grid"></div>
+<div class="step"><span>3</span><h3>Pilih Pembayaran</h3></div><div class="pay-grid" id="payGrid"></div>
+<label class="wa-label">Nomor WhatsApp *<input id="fWa" placeholder="08xxxxxxxxxx"></label>
+<button class="buy-big" onclick="order()">Buat Pesanan →</button><p id="orderMsg" class="msg"></p>
+<div id="vaBox" class="va-box hidden"></div>
+</main></div></div></div>
+
+<footer id="cfg">© 2026 Blueberry Store • blueberrytopup.com • Harga terbaik • Update otomatis • <span id="cfgLine"></span></footer>
+<script>
+let ALL=[],GAMES=[],CUR_GAME=null,CUR_NOM=null,CUR_PAY='BCA Virtual Account',CONFIG={};
+const COLORS=['#E11D48','#F97316','#7C3AED','#DC2626','#2563EB','#D97706','#0891B2','#059669','#BE185D','#4338CA'];
+function colorFor(name){let h=0;for(const c of name)h=(h*31+c.charCodeAt(0))%1000;return COLORS[h%COLORS.length];}
+async function loadConfig(){try{const r=await fetch('/api/config');CONFIG=await r.json();document.getElementById('cfgLine').textContent=CONFIG.duitku_active?'VA Duitku AKTIF':'VA Duitku belum aktif — transfer manual + konfirmasi WA';if(CONFIG.whatsapp)document.getElementById('waInfo').textContent='Hubungi kami via WhatsApp: +'+CONFIG.whatsapp;}catch(e){}}
+async function load(attempt=1){await loadConfig();const st=document.getElementById('status');try{st.textContent='Memuat katalog...'+(attempt>1?' (mencoba lagi '+attempt+')':'');const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),15000);const r=await fetch('/api/storefront-products',{signal:ctrl.signal});clearTimeout(to);const j=await r.json();ALL=j.products||[];if(!ALL.length){const dbg=j.debug||{};st.innerHTML='Katalog gagal dimuat: '+(dbg.supplier_message||'supplier tidak merespon')+' <button onclick="load(2)" style="background:#fff;color:#111;border:0;padding:6px 12px;border-radius:99px;font-weight:700;cursor:pointer">🔄 Coba Lagi</button> <a href="/api/storefront-products" target="_blank" style="color:#fff;text-decoration:underline">Lihat Error Detail</a>';document.getElementById('gameGrid').innerHTML='<div style="padding:20px;background:#2a0a0a;border:1px solid #7f1d1d;border-radius:12px"><b>⚠️ Katalog belum bisa dimuat dari supplier.</b><br><span style="opacity:.85">Ini bukan toko tutup — ini koneksi ke Tokowendik yang ditolak / lambat. Customer tetap bisa chat WA untuk order manual.</span><br><br><small style="opacity:.7">Debug: has_api_key='+(dbg.has_api_key?'YA':'TIDAK')+' • has_secret='+(dbg.has_secret?'YA':'TIDAK')+' • base='+ (dbg.base_used||'-') +'<br>'+((dbg.tried||[]).slice(0,3).join('<br>'))+'</small></div>';return;}st.textContent=`${ALL.length} produk • Harga terbaik • Update otomatis • Terakhir update ${new Date().toLocaleTimeString('id-ID')}`;buildGames();renderHome();}catch(e){st.innerHTML='Gagal memuat katalog (timeout 15 detik). <button onclick="load(2)" style="background:#fff;color:#111;border:0;padding:6px 12px;border-radius:99px;font-weight:700;cursor:pointer">🔄 Coba Lagi</button>';}}
+let CUR_TAB='SEMUA';
+function normName(s){return String(s||'Lainnya').trim().replace(/\s+/g,' ').replace(/\s*\(.*?\)\s*$/,'').trim();}
+function titleName(s){const n=normName(s);return n.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());}
+function classifyGame(g){
+  const s=(g.name+' '+g.items.map(x=>x.name||'').join(' ')).toLowerCase();
+  if(/pln|token listrik|listrik/.test(s)) return 'PLN';
+  if(/pulsa\b|pulsa reguler|pulsa transfer/.test(s)) return 'PULSA';
+  if(/paket data|kuota|internet|data\s*\d|voucher\s*data/.test(s)) return 'PAKET DATA';
+  if(/voucher|gift\s*card|google play|steam wallet|playstation|itunes|roblox.*voucher/.test(s)) return 'VOUCHER';
+  if(/e-money|emoney|dana|ovo|gopay|shopeepay|linkaja|saldo|top up.*(dana|ovo|gopay)|flazz|brizzi|tapcash/.test(s)) return 'E-MONEY';
+  return 'TOP UP';
+}
+
+function productMode(p){
+  const s=((p&&p.name)||''+' '+((p&&p.category)||'')).toLowerCase();
+  if(/unipin|voucher|gift\s*card|steam\s*wallet|google\s*play|playstation|itunes|apple\s*gift|roblox.*voucher|diamond.*voucher|top\s*up.*link|via\s*link|link\s*akun|redeem\s*code|kode\s*voucher/.test(s)) return 'VOUCHER';
+  return 'DIRECT';
+}
+function gameMode(g){
+  if(!g||!g.items||!g.items.length) return 'DIRECT';
+  const v=g.items.filter(p=>productMode(p)==='VOUCHER').length;
+  if(v===g.items.length) return 'VOUCHER';
+  if(v>0) return 'MIXED';
+  return 'DIRECT';
+}
+function detailModeForSelected(){
+  if(CUR_NOM && productMode(CUR_NOM)==='VOUCHER') return 'VOUCHER';
+  return gameMode(CUR_GAME)==='VOUCHER' ? 'VOUCHER' : 'DIRECT';
+}
+function refreshDetailForm(){
+  const mode=detailModeForSelected();
+  const stepTitle=document.querySelector('#detail .step h3');
+  const idWrap=document.getElementById('fId');
+  const zoneWrap=document.getElementById('fZone');
+  const help=document.getElementById('dHelp');
+  const desc=document.getElementById('dDesc');
+  if(mode==='VOUCHER'){
+    if(stepTitle) stepTitle.textContent='2. Tanpa ID Game — Kode dikirim ke WhatsApp';
+    if(idWrap){idWrap.closest('label').style.display='none'; idWrap.value='VOUCHER';}
+    if(zoneWrap){zoneWrap.closest('label').style.display='none'; zoneWrap.value='-';}
+    if(help) help.textContent='Produk ini VOUCHER / LINK (contoh: UniPin Voucher). Tidak perlu ID / Server. Setelah bayar, kode voucher / link redeem dikirim ke WhatsApp kamu. Tukarkan di situs resmi (misal unipin.com) / di dalam game.';
+    if(desc) desc.textContent='Voucher '+CUR_GAME.name+' resmi. Pilih nominal, isi WhatsApp, bayar — kode voucher dikirim setelah pembayaran terverifikasi.';
+  } else {
+    if(stepTitle) stepTitle.textContent='1. Masukkan ID & Server ID';
+    if(idWrap){idWrap.closest('label').style.display=''; if(idWrap.value==='VOUCHER') idWrap.value='';}
+    if(zoneWrap){zoneWrap.closest('label').style.display=''; if(zoneWrap.value==='-') zoneWrap.value='';}
+    if(help) help.textContent='Buka '+CUR_GAME.name+' → Pengaturan / Profil → Salin User ID dan Server.';
+    if(desc) desc.textContent='Top up '+CUR_GAME.name+' resmi. Pilih nominal, isi ID, bayar, saldo masuk otomatis setelah pembayaran terverifikasi.';
+  }
+  // Badge in detail header
+  const meta=document.getElementById('dMeta');
+  if(meta) meta.textContent=CUR_GAME.name+' • '+(mode==='VOUCHER'?'VOUCHER / LINK — Tanpa ID':'TOP UP LANGSUNG — ID + Server')+' • Global • Top Up Aman & Tercepat';
+}
+function buildGames(){const map={};for(const p of ALL){const key=normName(p.category||'Lainnya').toLowerCase();if(!map[key])map[key]={name:titleName(p.category||'Lainnya'),items:[]};map[key].items.push(p);}GAMES=Object.values(map).map(g=>({name:g.name,items:g.items.sort((a,b)=>a.price-b.price),min:Math.min(...g.items.map(x=>x.price))}));GAMES.forEach(g=>{g.cat=classifyGame(g);});}
+function setTab(t){CUR_TAB=t;document.querySelectorAll('#tabs .tab').forEach(b=>b.classList.toggle('active',b.textContent===t));renderHome();}
+function renderHome(){document.getElementById('gameCount').textContent=GAMES.length?GAMES.length+' layanan • Indonesia':'';const banners=[{t:'BLOOD STRIKE',s:'KINI ADA DI BLUEBERRY STORE!',b:'BARU',g:'linear-gradient(90deg,#450A0A,#7F1D1D,#111)',i:'B'},{t:'MOBILE LEGENDS',s:'Top Up Diamond resmi, proses instan.',b:'UNGGULAN • DISKON SAMPAI 12%',g:'linear-gradient(90deg,#2A0A4E,#5B21B6,#2563EB)',i:'M'},{t:'AGE OF EMPIRES MOBILE',s:'Kini ada di Blueberry Store!',b:'TOP PRODUCT',g:'linear-gradient(90deg,#7C2D12,#B45309,#FF6B00)',i:'A'}];document.getElementById('banners').innerHTML=banners.map((x,i)=>`<div class="banner ${i===0?'active':''}" style="background:${x.g}"><div><span class="badge">★ ${x.b}</span><h1>${x.t}</h1><p>${x.s}</p><button onclick="openGameByName('${x.t}')">TOP UP SEKARANG →</button></div><div class="big">${x.i}</div></div>`).join('');document.getElementById('dots').innerHTML=banners.map((_,i)=>`<button class="dot ${i===0?'active':''}" onclick="showBanner(${i})"></button>`).join('');
+document.getElementById('tabs').innerHTML=['SEMUA','TOP UP','PULSA','PAKET DATA','VOUCHER','E-MONEY','PLN'].map(t=>`<button class="tab ${t===CUR_TAB?'active':''}" onclick="setTab('${t}')">${t}</button>`).join('');
+const shown=CUR_TAB==='SEMUA'?GAMES:GAMES.filter(g=>g.cat===CUR_TAB);document.getElementById('gameGrid').innerHTML=shown.length?shown.map(g=>`<article class="game-card" onclick="openGame('${g.name.replace(/'/g,'')}')"><div class="game-cover" style="background:linear-gradient(135deg,${colorFor(g.name)},#111)"><span>${g.name.charAt(0)}</span><em>${gameMode(g)==='VOUCHER'?'VOUCHER':(gameMode(g)==='MIXED'?'TOP UP + VOUCHER':'TOP UP')}</em></div><div class="game-body"><h3>${g.name}</h3><p>${g.items.length} paket • ${g.cat} • Global</p><div class="from">Dari <b>Rp ${g.min.toLocaleString('id-ID')}</b></div><button>Top Up</button></div></article>`).join(''):'<p style="padding:20px;opacity:.7">Belum ada layanan di kategori ini. Coba kategori lain.</p>';}
+function showBanner(i){document.querySelectorAll('.banner').forEach((b,j)=>b.classList.toggle('active',j===i));document.querySelectorAll('.dot').forEach((d,j)=>d.classList.toggle('active',j===i));}
+function openGameByName(t){const g=GAMES.find(x=>x.name.toUpperCase().includes(t.split(' ')[0]))||GAMES[0];if(g)openGame(g.name);}
+function openGame(name){CUR_GAME=GAMES.find(g=>g.name===name);if(!CUR_GAME)return;CUR_NOM=CUR_GAME.items[0];document.getElementById('view-home').classList.add('hidden');document.getElementById('view-game').classList.remove('hidden');document.getElementById('dCover').innerHTML=`<span>${CUR_GAME.name.charAt(0)}</span>`;document.getElementById('dCover').style.background=`linear-gradient(135deg,${colorFor(CUR_GAME.name)},#111)`;document.getElementById('dName').textContent=CUR_GAME.name;refreshDetailForm();document.getElementById('dMeta').textContent=CUR_GAME.name+' • TOP UP • Global • Top Up Aman & Tercepat';document.getElementById('dDesc').textContent='Top up '+CUR_GAME.name+' resmi. Pilih nominal, isi ID, bayar, saldo masuk otomatis setelah pembayaran terverifikasi.';document.getElementById('dHelp').textContent='Buka '+CUR_GAME.name+' → Pengaturan / Profil → Salin User ID dan Server.';document.getElementById('dPay').innerHTML=['BCA Transfer','BCA Virtual Account','DANA','QRIS'].map(m=>`<span>${m}</span>`).join('');
+document.getElementById('nominalGrid').innerHTML=CUR_GAME.items.map((p,i)=>`<button class="nom ${i===0?'active':''}" onclick="selectNom(${i},this)"><b>${p.name}</b><small style='display:block;opacity:.7;font-weight:400'>${productMode(p)==='VOUCHER'?'🎟️ Voucher / Link — Tanpa ID':'🎮 Langsung ke ID'}</small><span>${p.name}</span><em>Dari<br>Rp ${p.price.toLocaleString('id-ID')}</em></button>`).join('');
+document.getElementById('payGrid').innerHTML=['BCA Virtual Account','BNI Virtual Account','BRI Virtual Account','Mandiri Virtual Account','DANA','QRIS','Gopay','ShopeePay','OVO'].map(m=>`<button class="pay ${m===CUR_PAY?'active':''}" onclick="selectPay('${m}',this)">${m}</button>`).join('');
+window.scrollTo({top:0,behavior:'smooth'});}
+function selectNom(i,el){CUR_NOM=CUR_GAME.items[i];refreshDetailForm();document.querySelectorAll('.nom').forEach(b=>b.classList.remove('active'));el.classList.add('active');}
+function selectPay(m,el){CUR_PAY=m;document.querySelectorAll('.pay').forEach(b=>b.classList.remove('active'));el.classList.add('active');}
+function showHome(){document.getElementById('view-game').classList.add('hidden');document.getElementById('view-home').classList.remove('hidden');window.scrollTo({top:0});}
+function openOrders(){alert('Cek pesanan via WhatsApp dengan kode order BB-... kamu.');}
+async function order(){const modeNow=detailModeForSelected();const id=document.getElementById('fId').value.trim();const wa=document.getElementById('fWa')?document.getElementById('fWa').value.trim():'';if(modeNow!=='VOUCHER' && !id){document.getElementById('orderMsg').textContent='Isi User ID dulu.';return;}if(!wa){document.getElementById('orderMsg').textContent='Isi WhatsApp dulu (buat kirim kode / konfirmasi).';return;}if(!CUR_NOM){document.getElementById('orderMsg').textContent='Pilih nominal dulu.';return;}document.getElementById('orderMsg').textContent='Memproses pesanan...';try{const r=await fetch('/api/create-order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({productId:CUR_NOM.id,productName:CUR_NOM.name,price:CUR_NOM.price,gameId:id,zone:document.getElementById('fZone').value,whatsapp:wa,payment:CUR_PAY,paymentMethod:CUR_PAY})});const j=await r.json();const box=document.getElementById('vaBox');if(j.duitku&&j.va_number){box.classList.remove('hidden');box.innerHTML=`<h3>✅ Virtual Account Berhasil Dibuat</h3><p>Kode Order: <b>${j.orderCode}</b></p><div class="va-num">${j.va_number}</div><p>${j.va_name||''} • ${j.method||CUR_PAY} • Total <b>Rp ${Number(j.amount).toLocaleString('id-ID')}</b></p><p>VA ini dari Duitku, berlaku untuk semua bank (transfer dari bank apapun ke VA ini).</p>`;document.getElementById('orderMsg').textContent='VA aktif. Bayar sebelum kadaluarsa.';}else{box.classList.remove('hidden');box.innerHTML=`<h3>Pesanan Dibuat: ${j.orderCode||''}</h3><p>Total: <b>Rp ${Number(j.amount||CUR_NOM.price).toLocaleString('id-ID')}</b> • Metode: ${CUR_PAY}</p><p>${j.message||''}</p><p>${detailModeForSelected()==='VOUCHER'?'🎟️ Ini produk VOUCHER / LINK: kode voucher / link redeem akan dikirim ke WhatsApp kamu setelah pembayaran terverifikasi. Tidak perlu ID game.':''}</p><p>Transfer manual ke rekening yang tertera di Vercel Env (BCA) + konfirmasi ke WhatsApp dengan kode <b>${j.orderCode||''}</b>.</p>${CONFIG.whatsapp?`<a class="wa-link" target="_blank" href="https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent('Halo, saya mau konfirmasi order '+(j.orderCode||'')+' '+CUR_NOM.name+' Rp '+CUR_NOM.price)}">Konfirmasi via WhatsApp →</a>`:''}`;document.getElementById('orderMsg').textContent='Pesanan dibuat. Cek instruksi di atas.';}}catch(e){document.getElementById('orderMsg').textContent='Gagal. Coba lagi.';}}
+load();
+</script></body></html>

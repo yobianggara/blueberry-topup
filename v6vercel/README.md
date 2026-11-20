@@ -1,0 +1,7 @@
+# Blueberry V40 - FIX: Tanpa Cari + ML 1 Wadah (tanpa Region) + AoE Hero di Awal
+FIX DARI SCREENSHOT USER:
+1. TANPA CARI: Kotak "Cari game" DIHAPUS (display:none) + tombol 🔍 di header dihapus. Abis loading, game LANGSUNG muncul, tidak perlu klik cari dulu. Cara Order diubah jadi "Klik game di bawah" (bukan "Cari / klik").
+2. ML REGION: "Mobile Legends Region Singapura/Malaysia/Thailand/Brazil/Filipina" BUKAN game beda - itu region supplier. V40 gabung semua jadi 1 wadah "Mobile Legends" (gameNameFromProduct normalize: mobile legend/mlbb -> Mobile Legends, magic chess -> Magic Chess, AoE -> Age Of Empires, dst). Jadi klik ML cuma muncul 1 ML, produknya gabungan semua region, termurah didahulukan (dedup V25). Tidak ada lagi Singapura/Malaysia di list game.
+3. AoE HERO DI AWAL: Tampilan awal ada hero besar AoE (gambar kastil, badge GAME FAVORITE • UNGGULAN, tombol TOP UP SEKARANG) yang STATIC - selalu terlihat walau API belum selesai, jadi UNGGULAN tidak keliatan kosong lagi. Klik hero -> buka detail AoE (produk + input Link).
+Tetap V39: UNGGULAN AoE di depan, gambar akurat per game (img/*.webp), MLBB-ID-V3 backend (ML produk asli), 3 section UNGGULAN/BARU/TOP UP LANGSUNG scroll ke bawah, V9 klik kartu baru produk, loading buah CSS, cache, harga 3% backend, 1 wadah per game.
+UPLOAD: Extract -> timpa v6vercel (pastikan v9/img ikut) -> Redeploy -> hard refresh. Cek: loading buah -> hero AoE langsung keliatan -> UNGGULAN ada kartu -> tidak ada kotak Cari -> klik ML -> cuma 1 ML, tidak ada Singapura/Malaysia/Thailand.

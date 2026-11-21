@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin - Blueberry Store</title><link rel="stylesheet" href="style.css">
+<style>
+body{background:#0f0a1e;color:#fff;font-family:Inter,system-ui,sans-serif;margin:0;padding:18px}
+.wrap{max-width:1100px;margin:0 auto}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
+.card{background:#1e1540;border:1px solid #3b2a7a;border-radius:14px;padding:16px}
+.card b{font-size:26px;display:block}.card span{opacity:.7;font-size:13px}
+table{width:100%;border-collapse:collapse;background:#17102e;border-radius:12px;overflow:hidden}
+th,td{padding:10px;border-bottom:1px solid #2a1e55;text-align:left;font-size:13px}
+th{background:#241a4a}button{cursor:pointer;border:0;border-radius:99px;padding:7px 14px;font-weight:700}
+.btn{background:#7c3aed;color:#fff}.btn2{background:#fff;color:#111}.filt{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+select,input{background:#241a4a;color:#fff;border:1px solid #3b2a7a;border-radius:10px;padding:8px 10px}
+.badge{padding:4px 10px;border-radius:99px;font-size:12px;background:#2a1e55}
+.badge.VA{background:#0e4a3a}.badge.MANUAL{background:#4a2a0e}
+@media(max-width:700px){.cards{grid-template-columns:1fr 1fr}}
+</style></head>
+<body><div class="wrap">
+<h1>🍇 Admin Blueberry Store</h1>
+<p style="opacity:.8">Laporan penjualan <b>per hari & per bulan</b> — Manual (sekarang) + VA Duitku (otomatis setelah Duitku ready). Data manual yang lu proses tetap kehitung di sini.</p>
+<div style="background:#241a4a;border:1px solid #f59e0b;border-radius:12px;padding:12px 14px;font-size:13px">⚠️ <b>Penting:</b> Laporan di server Vercel ini reset kalau Redeploy / server dingin. <b>Selalu Export CSV tiap malam</b> buat arsip permanen. Kalau mau permanen tanpa export, aktifkan <b>Vercel KV / Upstash Redis</b> (lihat README ADMIN) — nanti admin ini otomatis jadi permanen tanpa ubah tampilan.</div>
+<div class="cards">
+<div class="card"><span>HARI INI</span><b id="tCount">-</b><span id="tTotal">Rp 0</span><br><small id="tSplit"></small></div>
+<div class="card"><span>BULAN INI</span><b id="mCount">-</b><span id="mTotal">Rp 0</span><br><small id="mSplit"></small></div>
+<div class="card"><span>TOTAL SEMUA ORDER</span><b id="allCount">-</b><span>Total order tercatat di server</span></div>
+<div class="card"><span>STATUS VA</span><b style="font-size:16px">Virtual Account sedang perbaikan</b><span>lanjutkan proses transaksi via Admin</span></div>
+</div>
+
+<!-- V18 HARGA: Auto 07:00 + Edit Manual -->
+<div style="background:#1e1540;border:1px solid #7c3aed;border-radius:14px;padding:16px;margin:14px 0">
+<h2 style="margin:0 0 6px">💰 Harga — Auto Refresh Jam 7 Pagi + Edit Manual</h2>
+<p style="opacity:.8;font-size:13px;margin:0 0 10px">Setiap hari <b>jam 07:00 WIB</b> harga supplier di-refresh otomatis. Setelah itu lu bisa <b>edit harga per produk</b> di bawah. Harga yang lu edit (🔒 Manual) <b>tidak akan ketimpa</b> sama refresh besok. Harga yang tidak lu kunci akan ikut harga supplier terbaru.</p>
+<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px">
+<span style="background:#241a4a;padding:8px 12px;border-radius:99px">Terakhir auto-refresh: <b id="hargaLast">-</b></span>
+<span style="background:#241a4a;padding:8px 12px;border-radius:99px">Refresh berikutnya: <b id="hargaNext">Besok 07:00 WIB</b></span>
+<span style="background:#241a4a;padding:8px 12px;border-radius:99px">Harga manual terkunci: <b id="hargaLocked">0</b> produk</span>
+<button class="btn" onclick="refreshHargaNow()">🔄 Refresh Harga Sekarang</button>
+<button class="btn2" onclick="saveAllHarga()">💾 Simpan Semua Edit Harga</button>
+<!-- V21 TOMBOL TETAP: 2 EDIT HARGA - selalu nempel di samping Simpan -->
+<button id="btnModeBiasa" class="btn" onclick="setHargaMode('biasa')" style="background:#fff;color:#111;font-weight:800">👤 Edit Harga User Biasa</button>
+<button id="btnModeAgen" class="btn" onclick="setHargaMode('agen')" style="background:#f59e0b;color:#111;font-weight:800">⭐ Edit Harga User Agen</button>
+</div>
+<div id="hargaModeInfo" style="margin-top:10px;background:#241a4a;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5"></div>
+<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+<input id="hargaSearch" placeholder="Cari produk, misal: 86 Diamond / MLBB..." style="flex:1;min-width:220px" oninput="renderHarga()">
+<select id="hargaGame"><option value="">Semua Game</option><option>Mobile Legends</option><option>Free Fire</option><option>PUBG Mobile</option><option>Age of Empires Mobile</option></select>
+<select id="hargaMode"><option value="">Semua Harga</option><option value="manual">Hanya yang Manual 🔒</option><option value="auto">Hanya yang Auto</option></select>
+</div>
+<div id="hargaMsg" style="font-size:13px;opacity:.8;margin-top:8px"></div>
+<div id="hargaTable" style="margin-top:10px;overflow-x:auto"></div>
+<p style="font-size:12px;opacity:.6">Cara edit: klik dulu <b>👤 Edit Harga User Biasa</b> atau <b>⭐ Edit Harga User Agen</b> di atas — kolom yang bisa diubah akan menyala. Lalu ubah angkanya → klik <b>Simpan Semua Edit Harga</b>. Kalau mau balikin ke harga supplier, klik <b>Balikin ke Auto</b> di baris itu. Harga manual langsung tampil di toko begitu disimpan. → klik <b>Simpan Semua</b>. Kalau mau balikin ke harga supplier, klik <b>Balikin ke Auto</b> di baris itu. Harga manual langsung tampil di toko begitu disimpan.</p>
+</div>
+
+
+<!-- V20 REGISTRASI AGEN -->
+<div style="background:#1e1540;border:1px solid #f59e0b;border-radius:14px;padding:16px;margin:14px 0">
+<h2 style="margin:0 0 6px">⭐ Registrasi Agen — Harga Lebih Murah</h2>
+<p style="opacity:.8;font-size:13px;margin:0 0 10px">Pendaftar agen <b>langsung masuk ke WA lu (088802561769)</b> + tersimpan di sini. <b>Nggak ada lagi email ke raffmong@gmail.com, nggak ada notif lonceng.</b> Cara approve: klik <b>✅ Approve + Buat Sandi</b> → isi sandi agennya → lalu <b>WA / email si pendaftar</b> + kasih sandinya bilang: <i>"Agen lu udah aktif, buka lagi tokonya."</i> Dia langsung bisa transaksi dengan harga agen. Semua transaksi agen masuk ke laporan penjualan kayak biasa.</p>
+<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px">
+<span style="background:#241a4a;padding:8px 12px;border-radius:99px">Total pendaftar agen: <b id="agenCount">-</b></span>
+<span style="background:#241a4a;padding:8px 12px;border-radius:99px">Menunggu: <b id="agenPending">-</b></span>
+<button class="btn" onclick="loadAgen()">🔄 Refresh Pendaftar Agen</button>
+</div>
+<div id="agenTable" style="margin-top:10px;overflow-x:auto"></div>
+<p style="font-size:12px;opacity:.6">Sukses pendaftar: mereka dapet konfirmasi dari <b>WA lu / email yang mereka daftarkan</b> — bukan dari lonceng web. Jadi lu WAJIB balas WA / email mereka setelah Approve / Tolak.</p>
+</div>
+<script>
+let AGEN_LIST=[];
+async function loadAgen(){
+  try{
+    const j=await fetch('/api/agent-register').then(r=>r.json());
+    AGEN_LIST=j.agents||[];
+    document.getElementById('agenCount').textContent=AGEN_LIST.length;
+    document.getElementById('agenPending').textContent=AGEN_LIST.filter(a=>a.status==='Menunggu Approval').length;
+    if(!AGEN_LIST.length){ document.getElementById('agenTable').innerHTML='<p style="opacity:.7">Belum ada yang daftar jadi agen.</p>'; return; }
+    let h='<table><tr><th>Waktu</th><th>Nama / ID</th><th>WhatsApp</th><th>Email</th><th>Kota / Jualan</th><th>Status</th><th>Aksi</th></tr>';
+    for(const a of AGEN_LIST){
+      const waLink='https://wa.me/'+a.wa.replace(/^0/,'62')+'?text='+encodeURIComponent('Halo '+a.nama+', pendaftaran agen Blueberry lu (ID: '+a.id+') sudah kami terima. '+ (a.status==='Approved' ? 'Agen lu SUDAH AKTIF. Buka lagi tokonya, harga agen udah tampil. Selamat jualan!' : 'Mohon tunggu konfirmasi ya, kami cek dulu.'));
+      h+=`<tr><td>${new Date(a.createdAt).toLocaleString('id-ID',{timeZone:'Asia/Jakarta'})}</td><td><b>${a.nama}</b><br><small>${a.id}</small></td><td>${a.wa}</td><td>${a.email}</td><td>${a.kota||'-'}<br><small>${a.alasan||''}</small></td><td>${a.status==='Approved'?(a.hasSandi?'✅ Approved — Sandi sudah dibuat':'✅ Approved — Belum ada sandi, klik Ganti Sandi'):a.status==='Ditolak'?'❌ Ditolak':'⏳ Menunggu Approval'}</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" onclick="setAgenStatus('${a.id}','Approved')">✅ Approve + Buat Sandi</button><button class="btn2" onclick="gantiSandiAgen('${a.id}','${a.nama}')">🔑 Ganti Sandi Agen</button><button class="btn2" onclick="salinLoginAgen('${a.email}')">📋 Salin Cara Login</button><button class="btn2" onclick="setAgenStatus('${a.id}','Ditolak')">Tolak</button><a href="${waLink}" target="_blank" style="background:#25D366;color:#111;border-radius:99px;padding:7px 14px;font-weight:700;text-decoration:none;font-size:13px">WA Pendaftar</a></div></td></tr>`;
+    }
+    h+='</table>'; document.getElementById('agenTable').innerHTML=h;
+  }catch(e){ document.getElementById('agenTable').innerHTML='Gagal load: '+e.message; }
+}
+async function setAgenStatus(id,status){
+  let sandi='';
+  if(status==='Approved'){
+    sandi = prompt('Buat SANDI AGEN untuk pendaftar ini.\n\nSandi ini yang akan dia pakai untuk login sebagai agen.\nContoh: Budi123 / agenbudi2026\n\nKetik sandinya di sini:','')||'';
+    if(!sandi){ alert('Batal. Sandi wajib diisi kalau mau Approve.'); return; }
+    if(sandi.length<4){ alert('Sandi minimal 4 karakter. Coba lagi.'); return; }
+    if(!confirm('Approve '+id+' dengan sandi: '+sandi+' ?\n\nSetelah ini, kirim sandi ini ke pendaftar via WA / email. Jangan sampai salah kirim.')) return;
+  } else {
+    if(!confirm('Tolak '+id+'? Jangan lupa kabari pendaftar via WA / email.')) return;
+  }
+  try{ await fetch('/api/agent-register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'setStatus',id,status,sandi})}); }catch(e){}
+  const it=AGEN_LIST.find(a=>a.id===id); if(it) it.status=status;
+  loadAgen();
+  if(status==='Approved'){
+    alert('✅ '+id+' sudah di-Approve.\n\nSANDI AGEN: '+sandi+'\n\nSekarang klik WA Pendaftar dan kirim pesan ini:\nHalo, agen kamu sudah aktif. Login pakai email kamu + sandi: '+sandi+'\n\nSukses pendaftar dari WA kamu / email dia, bukan lonceng.');
+  } else {
+    alert('Status '+id+' -> Ditolak. Jangan lupa kabari pendaftar via WA / email.');
+  }
+}
+async function gantiSandiAgen(id, nama){
+  const s = prompt('Ganti sandi agen untuk '+nama+' ('+id+').\nKetik sandi baru:','')||'';
+  if(!s) return; if(s.length<4){ alert('Sandi minimal 4 karakter.'); return; }
+  await fetch('/api/agent-register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'setStatus',id,status:'Approved',sandi:s})});
+  alert('Sandi baru untuk '+nama+': '+s+'\n\nKirim sandi baru ini ke agen via WA / email.');
+  loadAgen();
+}
+function salinLoginAgen(email){
+  const t='Buka blueberrytopup.com → klik Masuk Sebagai Agen → Email: '+email+' → Sandi: (sandi yang Admin kasih via WA)';
+  try{ navigator.clipboard.writeText(t); alert('Tersalin. Tempel ke WA agen, lalu tambahkan sandinya.'); }catch(e){ prompt('Salin teks ini ke WA agen:', t); }
+}
+document.addEventListener('DOMContentLoaded', loadAgen);
+</script>
+<div class="filt">
+<label>Hari <input type="date" id="fDay"></label>
+<label>Bulan <input type="month" id="fMonth"></label>
+<select id="fMode"><option value="">Semua Mode</option><option value="MANUAL">Manual (Admin)</option><option value="VA">VA Duitku</option></select>
+<select id="fStatus"><option value="">Semua Status</option><option>Menunggu Konfirmasi Admin</option><option>Menunggu Pembayaran VA</option><option>Diproses</option><option>Selesai</option><option>Dibatalkan</option></select>
+<button class="btn" onclick="load()">🔍 Filter</button>
+<button class="btn2" onclick="exportCSV()">⬇️ Export CSV</button>
+<button class="btn2" onclick="load(true)">🔄 Refresh</button>
+</div>
+<h3>📅 Laporan Per Hari</h3><div id="daily"></div>
+<h3>📆 Laporan Per Bulan</h3><div id="monthly"></div>
+<h3>🧾 Daftar Transaksi</h3>
+<table><thead><tr><th>Kode</th><th>Tanggal</th><th>Produk</th><th>ID / WA</th><th>Mode</th><th>Total</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="rows"></tbody></table>
+<p style="opacity:.6;font-size:12px">Cara pakai: Customer order → muncul di sini. Kalau Manual, lu cek transfer di BCA → klik <b>Diproses</b> → setelah isi di Tokowendik / kirim kode voucher → klik <b>Selesai</b>. Kalau VA (nanti), status berubah otomatis dari webhook Duitku jadi Selesai setelah bayar, tanpa lu klik.</p>
+</div>
+<script>
+let ALL=[];
+const rp=n=>'Rp '+Number(n||0).toLocaleString('id-ID');
+async function load(){
+  const d=document.getElementById('fDay').value, mo=document.getElementById('fMonth').value, mode=document.getElementById('fMode').value, st=document.getElementById('fStatus').value;
+  const q=new URLSearchParams(); if(d)q.set('day',d); if(mo)q.set('month',mo); if(mode)q.set('mode',mode); if(st)q.set('status',st);
+  const r=await fetch('/api/admin-orders?'+q.toString()); const j=await r.json(); ALL=j.orders||[];
+  document.getElementById('tCount').textContent=j.report.today.count+' order';
+  document.getElementById('tTotal').textContent=rp(j.report.today.total);
+  document.getElementById('tSplit').textContent='Manual: '+j.report.today.manual+' • VA: '+j.report.today.va;
+  document.getElementById('mCount').textContent=j.report.thisMonth.count+' order';
+  document.getElementById('mTotal').textContent=rp(j.report.thisMonth.total);
+  document.getElementById('mSplit').textContent='Manual: '+j.report.thisMonth.manual+' • VA: '+j.report.thisMonth.va;
+  document.getElementById('allCount').textContent=j.total+' order';
+  document.getElementById('daily').innerHTML=(j.report.daily||[]).map(x=>`<div style="display:flex;justify-content:space-between;background:#17102e;padding:10px 14px;border-radius:10px;margin-bottom:6px"><span><b>${x.day}</b> — ${x.count} order • Manual ${x.manual} • VA ${x.va} • Selesai ${x.selesai}</span><b>${rp(x.total)}</b></div>`).join('')||'<p style="opacity:.6">Belum ada data hari ini.</p>';
+  document.getElementById('monthly').innerHTML=(j.report.monthly||[]).map(x=>`<div style="display:flex;justify-content:space-between;background:#17102e;padding:10px 14px;border-radius:10px;margin-bottom:6px"><span><b>${x.month}</b> — ${x.count} order • Manual ${x.manual} • VA ${x.va} • Selesai ${x.selesai}</span><b>${rp(x.total)}</b></div>`).join('')||'<p style="opacity:.6">Belum ada data bulan ini.</p>';
+  document.getElementById('rows').innerHTML=ALL.map(o=>`<tr><td><b>${o.code}</b></td><td>${o.day||''}<br><small>${new Date(o.date).toLocaleTimeString('id-ID')}</small></td><td>${o.product}<br><small>${o.productId}</small></td><td>ID: ${o.gameId||'-'}<br>WA: ${o.whatsapp||'-'}</td><td><span class="badge ${o.mode}">${o.mode}</span></td><td><b>${rp(o.amount||o.price)}</b></td><td>${o.status}</td><td><button class="btn" onclick="setStatus('${o.code}','DIPROSES')">Diproses</button> <button class="btn2" onclick="setStatus('${o.code}','SELESAI')">Selesai</button></td></tr>`).join('')||'<tr><td colspan="8" style="text-align:center;opacity:.6">Belum ada order. Coba buat order test di toko.</td></tr>';
+}
+async function setStatus(code,status){
+  await fetch('/api/admin-orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'update-status',code,status:status==='DIPROSES'?'DIPROSES':status==='SELESAI'?'SELESAI':status})});
+  load();
+}
+function exportCSV(){
+  const h=['Kode,Tanggal,Produk,ProductId,ID,WA,Mode,Total,Status'];
+  const rows=ALL.map(o=>[o.code,o.day,'"'+String(o.product).replace(/"/g,'')+'"',o.productId,o.gameId,o.whatsapp,o.mode,o.amount||o.price,o.status].join(','));
+  const blob=new Blob([h.concat(rows).join('\n')],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='blueberry-laporan-'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+}
+load();
+</script>
+<script>
+let HARGA_PRODUCTS=[]; let HARGA_OVERRIDES={}; let HARGA_EDITS={}; let HARGA_MODE='biasa'; let HARGA_OVERRIDES_AGEN={}; let HARGA_EDITS_AGEN={};
+async function loadHarga(){
+  try{
+    const [pr, prod, ag] = await Promise.all([fetch('/api/prices').then(r=>r.json()), fetch('/api/storefront-products').then(r=>r.json()), fetch('/api/agent-prices').then(r=>r.json()).catch(()=>({overrides:{}}))]); HARGA_OVERRIDES_AGEN = ag.overrides||{};
+    HARGA_OVERRIDES = pr.overrides||{};
+    HARGA_PRODUCTS = (prod.products||[]).map(p=>({...p, _auto:p.price, _manual:HARGA_OVERRIDES[String(p.id)]||null, _agen:HARGA_OVERRIDES_AGEN[String(p.id)]||null}));
+    const last = pr.lastRefresh ? (pr.lastRefresh + ' • ' + (pr.lastRefreshAt?new Date(pr.lastRefreshAt).toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}):'')) : 'Belum pernah — klik Refresh Harga Sekarang';
+    document.getElementById('hargaLast').textContent = last;
+    document.getElementById('hargaLocked').textContent = Object.keys(HARGA_OVERRIDES).length;
+    // Next 07:00
+    const now = new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Jakarta'}));
+    const nxt = new Date(now); nxt.setHours(7,0,0,0); if(now >= nxt) nxt.setDate(nxt.getDate()+1);
+    document.getElementById('hargaNext').textContent = nxt.toLocaleDateString('id-ID',{day:'numeric',month:'long'}) + ' 07:00 WIB';
+    renderHarga(); setHargaMode(HARGA_MODE);
+  }catch(e){ document.getElementById('hargaMsg').textContent='Gagal load harga: '+e.message; }
+}
+function setHargaMode(mode){
+  HARGA_MODE=mode;
+  const b=document.getElementById('btnModeBiasa'); const a=document.getElementById('btnModeAgen');
+  if(b) b.style.outline = mode==='biasa' ? '3px solid #22c55e' : 'none';
+  if(a) a.style.outline = mode==='agen' ? '3px solid #22c55e' : 'none';
+  const info=document.getElementById('hargaModeInfo');
+  if(info) info.innerHTML = mode==='biasa'
+    ? '<b>👤 Kamu lagi edit: Harga User Biasa.</b> Ini harga yang dilihat pembeli biasa (yang klik Beli Biasa / belum login agen). Kolom <b>Harga User Biasa</b> bisa diubah, kolom Harga Agen terkunci. Kalau sudah selesai, klik <b>Simpan Semua Edit Harga</b>.'
+    : '<b>⭐ Kamu lagi edit: Harga User Agen.</b> Ini harga yang dilihat agen yang sudah login (email + sandi dari Admin). Harus <b>lebih murah</b> dari harga biasa supaya agen untung. Kolom <b>Harga User Agen</b> bisa diubah, kolom Harga Biasa terkunci. Kalau sudah selesai, klik <b>Simpan Semua Edit Harga</b>. Kalau produk belum diatur harga agennya, agen akan melihat harga biasa.';
+  renderHarga();
+}
+function renderHarga(){
+  const q=(document.getElementById('hargaSearch').value||'').toLowerCase();
+  const g=document.getElementById('hargaGame').value; const m=document.getElementById('hargaMode').value;
+  let list=HARGA_PRODUCTS.filter(p=>{
+    if(q && !(p.name+' '+p.category).toLowerCase().includes(q)) return false;
+    if(g && p.category!==g) return false;
+    if(m==='manual' && !p._manual) return false;
+    if(m==='auto' && p._manual) return false;
+    return true;
+  });
+  // Kelompok per game, urut game
+  const order={'Mobile Legends':0,'Free Fire':1,'PUBG Mobile':2,'Age of Empires Mobile':3};
+  list.sort((a,b)=>(order[a.category]??9)-(order[b.category]??9) || a.name.localeCompare(b.name));
+  if(!list.length){ document.getElementById('hargaTable').innerHTML='<p style="opacity:.7">Tidak ada produk. Coba refresh harga dulu.</p>'; return; }
+  let html='<table><tr><th>Game</th><th>Produk</th><th>Harga Supplier (Auto)</th><th>Harga User Biasa</th><th>Harga User Agen</th><th>Status</th><th>Aksi</th></tr>';
+  for(const p of list){
+    const curBiasa = HARGA_EDITS[String(p.id)] ?? p._manual ?? p._auto;
+    const curAgen = HARGA_EDITS_AGEN[String(p.id)] ?? p._agen ?? '';
+    const isMan = !!(HARGA_EDITS[String(p.id)] ?? p._manual);
+    const isAgen = !!(HARGA_EDITS_AGEN[String(p.id)] ?? p._agen);
+    const biasaEditable = HARGA_MODE==='biasa';
+    const agenEditable = HARGA_MODE==='agen';
+    html+=`<tr><td>${p.category}</td><td><b>${p.name}</b><br><small style="opacity:.6">${p.id}</small></td><td>Rp ${Number(p._auto).toLocaleString('id-ID')}</td><td style="${biasaEditable?'background:#1a3a2a;outline:2px solid #22c55e':''}"><input type="number" min="1" value="${curBiasa}" ${biasaEditable?'':'disabled'} style="width:120px;${biasaEditable?'':'opacity:.45'}" oninput="HARGA_EDITS['${p.id}']=Number(this.value);document.getElementById('hargaMsg').textContent='Ada harga User Biasa yang belum disimpan — klik Simpan Semua Edit Harga.'"><br><small style="opacity:.65">${biasaEditable?'✏️ Bisa diubah (mode Biasa)':'🔒 Terkunci — klik Edit Harga User Biasa dulu'}</small></td><td style="${agenEditable?'background:#3a2a00;outline:2px solid #f59e0b':''}"><input type="number" min="1" placeholder="Sama kayak biasa" value="${curAgen}" ${agenEditable?'':'disabled'} style="width:120px;${agenEditable?'':'opacity:.45'}" oninput="HARGA_EDITS_AGEN['${p.id}']=Number(this.value);document.getElementById('hargaMsg').textContent='Ada harga User Agen yang belum disimpan — klik Simpan Semua Edit Harga.'"><br><small style="opacity:.65">${agenEditable?'✏️ Bisa diubah (mode Agen)':(isAgen?'✅ Sudah diatur — klik Edit Harga User Agen untuk ubah':'— Belum diatur, agen lihat harga biasa')}</small></td><td>${isMan?'<span class="badge" style="background:#4a2a0e">🔒 Manual Biasa</span>':'<span class="badge">⚡ Auto 07:00</span>'}<br>${isAgen?'<span class="badge" style="background:#4a2a0e">⭐ Harga Agen diatur</span>':''}</td><td>${isMan?`<button class="btn2" onclick="clearOneHarga('${p.id}','biasa')">Balikin Biasa ke Auto</button>`:''} ${isAgen?`<button class="btn2" onclick="clearOneHarga('${p.id}','agen')">Balikin Agen ke Biasa</button>`:''}${(!isMan&&!isAgen)?'-':''}</td></tr>`;
+  }
+  html+='</table>';;
+  document.getElementById('hargaTable').innerHTML=html;
+}
+async function saveAllHarga(){
+  if(HARGA_MODE==='agen'){
+    const items=Object.entries(HARGA_EDITS_AGEN).map(([id,price])=>({id,price}));
+    if(!items.length){ document.getElementById('hargaMsg').textContent='Tidak ada harga User Agen yang diubah. Ubah dulu angka di kolom Harga User Agen.'; return; }
+    document.getElementById('hargaMsg').textContent='Menyimpan harga User Agen...';
+    const r=await fetch('/api/agent-prices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set',items})}).then(r=>r.json());
+    if(r.ok){ HARGA_EDITS_AGEN={}; document.getElementById('hargaMsg').textContent='✅ Tersimpan '+r.saved+' harga User Agen. Agen yang login akan langsung lihat harga baru ini.'; loadHarga(); }
+    else document.getElementById('hargaMsg').textContent='Gagal simpan harga agen.';
+    return;
+  }
+  const items=Object.entries(HARGA_EDITS).map(([id,price])=>({id,price}));
+  if(!items.length){ document.getElementById('hargaMsg').textContent='Tidak ada harga User Biasa yang diubah. Ubah dulu angka di kolom Harga User Biasa.'; return; }
+  document.getElementById('hargaMsg').textContent='Menyimpan harga User Biasa...';
+  const r=await fetch('/api/prices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set',items})}).then(r=>r.json());
+  if(r.ok){ HARGA_EDITS={}; document.getElementById('hargaMsg').textContent='✅ Tersimpan '+r.saved+' harga User Biasa. Pembeli biasa akan langsung lihat harga baru ini.'; loadHarga(); }
+  else document.getElementById('hargaMsg').textContent='Gagal simpan.';
+}
+async function clearOneHarga(id, mode){
+  mode = mode || HARGA_MODE;
+  if(mode==='agen'){ if(!confirm('Balikin harga User Agen produk ini ke harga biasa (hapus harga agennya)?')) return; await fetch('/api/agent-prices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'clear',ids:[id]})}); delete HARGA_EDITS_AGEN[id]; loadHarga(); return; }
+  if(!confirm('Balikin harga User Biasa produk ini ke harga Auto (supplier)?')) return;
+  await fetch('/api/prices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'clear',ids:[id]})});
+  delete HARGA_EDITS[id]; loadHarga();
+}
+async function refreshHargaNow(){
+  document.getElementById('hargaMsg').textContent='Refresh harga supplier...';
+  await fetch('/api/cron-refresh-prices').then(r=>r.json());
+  await fetch('/api/prices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'mark-refresh',date:new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Jakarta'})).toISOString().slice(0,10)})});
+  // Reload produk supaya harga auto terbaru tampil
+  await loadHarga();
+  document.getElementById('hargaMsg').textContent='✅ Refresh selesai. Harga Auto sudah pakai harga supplier terbaru. Harga Manual tetap terkunci.';
+}
+document.addEventListener('DOMContentLoaded', loadHarga);
+</script>
+</body></html>

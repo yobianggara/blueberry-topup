@@ -1,4 +1,0 @@
-{
-  "cleanUrls": true,
-  "crons": [{ "path": "/api/cron-refresh-prices", "schedule": "0 0 * * *" }]
-}

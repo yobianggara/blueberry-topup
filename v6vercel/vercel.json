@@ -1,0 +1,8 @@
+{
+  "cleanUrls": true,
+  "crons": [{ "path": "/api/cron-refresh-prices", "schedule": "0 0 * * *" }],
+  "headers": [
+    { "source": "/(.*\\.html)", "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }] },
+    { "source": "/", "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }] }
+  ]
+}
